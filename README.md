@@ -37,6 +37,9 @@ AWS上のリソース名は `us-states-lambda-pipeline-*` のプレフィック�
 - `HelloFunctionArn` — Lambda関数のARN
 - `HelloApiUrl` — 動作確認用のHTTPSエンドポイント
 
+詳しい構築手順・作成したAWSリソース一覧・ハマったポイントは
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) を参照。
+
 ## ローカルでのテスト
 
 ```bash
