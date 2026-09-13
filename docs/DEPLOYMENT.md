@@ -22,6 +22,10 @@ CodePipeline: us-states-lambda-pipeline
    │     3. sam build                    … Lambdaパッケージのビルド
    │     4. sam package --s3-bucket ...  … S3へアップロードし packaged.yaml を生成
    │
+   ├─ [Approval] ManualApproval
+   │     デプロイ前に手動承認が必要(AWSコンソールのCodePipeline画面、
+   │     または `aws codepipeline put-approval-result` で承認/却下する)
+   │
    └─ [Deploy] DeployLambdaStack (CloudFormation, CREATE_UPDATE)
          packaged.yaml を使って us-states-lambda-sample-stack を作成/更新
          → Lambda関数 (us-states-lambda-sample) + HTTP API (API Gateway) を作成
