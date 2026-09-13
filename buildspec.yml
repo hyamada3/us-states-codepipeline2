@@ -1,0 +1,21 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.13
+    commands:
+      - pip install --upgrade pip
+      - pip install aws-sam-cli
+  pre_build:
+    commands:
+      - pip install -r requirements.txt
+      - pytest tests/ -v
+  build:
+    commands:
+      - sam build --use-container=false
+      - sam package --s3-bucket "$PACKAGE_BUCKET" --output-template-file packaged.yaml
+
+artifacts:
+  files:
+    - packaged.yaml

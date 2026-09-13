@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  us-states-codepipeline2 サンプルLambda関数 (Python 3.13)。
+  API Gatewayから呼び出されるHello Worldサンプル。
+
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 128
+    Runtime: python3.13
+
+Resources:
+  HelloFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: us-states-lambda-sample
+      CodeUri: src/
+      Handler: app.handler
+      Events:
+        HelloApi:
+          Type: HttpApi
+          Properties:
+            Path: /hello
+            Method: GET
+
+Outputs:
+  HelloFunctionArn:
+    Description: サンプルLambda関数のARN
+    Value: !GetAtt HelloFunction.Arn
+  HelloApiUrl:
+    Description: サンプルLambda関数を呼び出すエンドポイントURL
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/hello"
