@@ -13,7 +13,7 @@ phases:
       - pytest tests/ -v
   build:
     commands:
-      - sam build --use-container=false
+      - sam build
       - sam package --s3-bucket "$PACKAGE_BUCKET" --output-template-file packaged.yaml
 
 artifacts:
