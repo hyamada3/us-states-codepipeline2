@@ -6,27 +6,32 @@ AWS Lambda関数のサンプルと、それをCI/CDでデプロイするCodePipe
 
 - `src/app.py` — サンプルLambda関数（Python 3.13）。`GET /hello?name=xxx` で挨拶を返すAPI。
 - `tests/test_app.py` — Lambda関数のユニットテスト（pytest）。
-- `template.yaml` — AWS SAM（CloudFormation）テンプレート。Lambda関数とHTTP API (API Gateway) を定義。
-- `buildspec.yml` — CodeBuild用のビルド定義。テスト実行後、`sam build` / `sam package` を行う。
+- `src/Dockerfile` — Lambda用コンテナイメージの定義（ベース: `public.ecr.aws/lambda/python:3.13`）。
+- `template.yaml` — AWS SAM（CloudFormation）テンプレート。コンテナイメージ型（`PackageType: Image`）のLambda関数とHTTP API (API Gateway) を定義。
+- `buildspec.yml` — CodeBuild用のビルド定義。テスト実行後、`sam build`（docker build）/ `sam package`（ECRへpush）を行う。
 
 ## パイプライン構成
 
 ```
 GitHub (main)
-   │  CodeStarConnections
+   │  CodeStarConnections (Webhook)
    ▼
 [Source] ── CodePipeline
    │
    ▼
-[Build]  CodeBuild
+[Build]  CodeBuild (特権モード / Docker)
    - pytest でユニットテスト実行
-   - sam build / sam package でLambdaをパッケージ化しS3へアップロード
-   - packaged.yaml を出力アーティファクトとして渡す
+   - sam build で src/Dockerfile からコンテナイメージをビルド
+   - sam package でイメージを ECR (us-states-lambda-pipeline) へpush
+   - ImageUri を埋め込んだ packaged.yaml を出力アーティファクトとして渡す
+   │
+   ▼
+[Approval] 手動承認
    │
    ▼
 [Deploy] CloudFormation (CREATE_UPDATE)
    - packaged.yaml を使ってスタック `us-states-lambda-sample-stack` を作成/更新
-   - Lambda関数 + API Gatewayがデプロイされる
+   - Lambda関数（ECRのイメージを参照）+ API Gatewayがデプロイされる
 ```
 
 AWS上のリソース名は `us-states-lambda-pipeline-*` のプレフィックスで統一。

@@ -16,11 +16,12 @@ CodePipeline: us-states-lambda-pipeline
    ├─ [Source] AppSource
    │     CodeStarSourceConnection でリポジトリのコードを取得
    │
-   ├─ [Build] BuildAndPackage (CodeBuild)
+   ├─ [Build] BuildAndPackage (CodeBuild, 特権モード)
    │     1. pip install -r requirements.txt
-   │     2. pytest tests/ -v            … ユニットテスト
-   │     3. sam build                    … Lambdaパッケージのビルド
-   │     4. sam package --s3-bucket ...  … S3へアップロードし packaged.yaml を生成
+   │     2. pytest tests/ -v                  … ユニットテスト
+   │     3. docker login (ECR)
+   │     4. sam build                          … src/Dockerfile からイメージをビルド
+   │     5. sam package --image-repository ... … ECRへpushし ImageUri入りの packaged.yaml を生成
    │
    ├─ [Approval] ManualApproval
    │     デプロイ前に手動承認が必要(AWSコンソールのCodePipeline画面、
@@ -28,22 +29,23 @@ CodePipeline: us-states-lambda-pipeline
    │
    └─ [Deploy] DeployLambdaStack (CloudFormation, CREATE_UPDATE)
          packaged.yaml を使って us-states-lambda-sample-stack を作成/更新
-         → Lambda関数 (us-states-lambda-sample) + HTTP API (API Gateway) を作成
+         → Lambda関数 (us-states-lambda-sample-image, コンテナイメージ) + HTTP API (API Gateway) を作成
 ```
 
 ## 作成したAWSリソース一覧
 
 | 種別 | 名前 | 用途 |
 |---|---|---|
-| S3バケット | `us-states-lambda-pipeline-artifacts-277731792740` | CodePipelineのアーティファクト保管、SAMパッケージのアップロード先 |
+| S3バケット | `us-states-lambda-pipeline-artifacts-277731792740` | CodePipelineのアーティファクト保管(packaged.yaml等)。Lambdaのコード自体は置かない |
+| ECRリポジトリ | `us-states-lambda-pipeline` | Lambdaコンテナイメージの保管先(scan on push、直近10イメージ保持) |
 | IAMロール | `us-states-lambda-pipeline-codepipeline-role` | CodePipeline本体の実行ロール |
-| IAMロール | `us-states-lambda-pipeline-codebuild-role` | CodeBuildの実行ロール(ログ出力・S3アクセス) |
+| IAMロール | `us-states-lambda-pipeline-codebuild-role` | CodeBuildの実行ロール(ログ出力・S3アクセス・ECRへのpush) |
 | IAMロール | `us-states-lambda-pipeline-cfn-deploy-role` | CloudFormationがスタックリソースを作成する際に引き受けるロール |
 | CodeBuildプロジェクト | `us-states-lambda-pipeline-build` | テスト実行 + `sam build`/`sam package` |
 | CodePipeline | `us-states-lambda-pipeline` | Source→Build→Deployの3ステージパイプライン |
 | CloudFormationスタック | `us-states-lambda-sample-stack` | パイプラインのDeployステージが作成。Lambda関数とHTTP APIを含む |
-| Lambda関数 | `us-states-lambda-sample` | サンプル関数本体(Python 3.13) |
-| API Gateway (HTTP API) | (スタックが自動命名) | `GET /hello` を `us-states-lambda-sample` にプロキシ |
+| Lambda関数 | `us-states-lambda-sample-image` | サンプル関数本体(Python 3.13、コンテナイメージ) |
+| API Gateway (HTTP API) | (スタックが自動命名) | `GET /hello` を `us-states-lambda-sample-image` にプロキシ |
 
 GitHub連携には既存のCodeStarConnection(`github-connection1`,
 `arn:aws:codeconnections:ap-northeast-1:277731792740:connection/edf7aac9-8b48-4dc0-9eed-e510bc34cdcb`)
@@ -67,6 +69,22 @@ $ curl https://wuexmyrprc.execute-api.ap-northeast-1.amazonaws.com/hello
 $ curl "https://wuexmyrprc.execute-api.ap-northeast-1.amazonaws.com/hello?name=Yamada"
 {"message": "Hello, Yamada!", "path": "/hello"}
 ```
+
+## Zip(S3)からコンテナイメージ(ECR)への移行 (2026-09-29)
+
+当初はLambdaコードをzip化してS3経由でデプロイしていたが、コンテナイメージをECR経由で
+デプロイする方式に変更した。
+
+- ECRリポジトリ `us-states-lambda-pipeline` を新規作成(既存の`hyamada/us_states_map`は別プロジェクト用で無関係)。
+  リポジトリポリシーで `lambda.amazonaws.com` に `ecr:BatchGetImage` / `ecr:GetDownloadUrlForLayer` を許可
+  (`aws:sourceArn` を `function:us-states-lambda-sample*` に限定)。
+- CodeBuildプロジェクトを特権モード(`privilegedMode: true`)に変更し、環境変数を
+  `PACKAGE_BUCKET` から `IMAGE_REPOSITORY`(ECRのURI)に差し替えた。
+- CodeBuildロールにECR push権限、CloudFormationデプロイロールにECR pull権限を追加。
+- **LambdaのPackageType(Zip→Image)は変更不可で関数の置換になる。**
+  `FunctionName`を固定しているとCloudFormationはカスタム名リソースの置換ができずに失敗するため、
+  関数名を `us-states-lambda-sample` → `us-states-lambda-sample-image` に変更した。
+  同一スタック内の置換なので、API GatewayのURLは変わらない。旧Zip関数はスタック更新時に自動削除される。
 
 ## ハマったポイント
 

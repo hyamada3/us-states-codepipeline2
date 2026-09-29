@@ -1,28 +1,33 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  us-states-codepipeline2 サンプルLambda関数 (Python 3.13)。
+  us-states-codepipeline2 サンプルLambda関数 (Python 3.13, コンテナイメージ)。
   API Gatewayから呼び出されるHello Worldサンプル。
 
 Globals:
   Function:
     Timeout: 10
     MemorySize: 128
-    Runtime: python3.13
 
 Resources:
   HelloFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: us-states-lambda-sample
-      CodeUri: src/
-      Handler: app.handler
+      # Zip→Imageへの切替はLambda関数の置換が必要なため、旧関数(us-states-lambda-sample)とは別名にしている
+      FunctionName: us-states-lambda-sample-image
+      PackageType: Image
+      Architectures:
+        - x86_64
       Events:
         HelloApi:
           Type: HttpApi
           Properties:
             Path: /hello
             Method: GET
+    Metadata:
+      DockerContext: ./src
+      Dockerfile: Dockerfile
+      DockerTag: python3.13
 
 Outputs:
   HelloFunctionArn:

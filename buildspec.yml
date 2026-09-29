@@ -11,10 +11,11 @@ phases:
     commands:
       - pip install -r requirements.txt
       - pytest tests/ -v
+      - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "${IMAGE_REPOSITORY%%/*}"
   build:
     commands:
       - sam build
-      - sam package --s3-bucket "$PACKAGE_BUCKET" --output-template-file packaged.yaml
+      - sam package --image-repository "$IMAGE_REPOSITORY" --output-template-file packaged.yaml
 
 artifacts:
   files:
